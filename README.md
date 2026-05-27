@@ -1,0 +1,202 @@
+# Supply Chain Cost Intelligence
+
+> **SQL-driven supplier analytics — the same analysis I ran at Daikin to surface $5M+ in savings, now as a reproducible data system.**
+
+[![Python](https://img.shields.io/badge/Python-3.11-blue)](https://www.python.org/)
+[![DuckDB](https://img.shields.io/badge/DuckDB-0.10-yellow)](https://duckdb.org/)
+[![Quarto](https://img.shields.io/badge/Quarto-report-teal)](https://quarto.org/)
+[![scikit-learn](https://img.shields.io/badge/scikit--learn-1.3-orange)](https://scikit-learn.org/)
+
+Procurement teams lose millions annually to supplier inefficiencies hidden in their own data: price anomalies, unreliable lead times, and unoptimized vendor selection. This project surfaces those opportunities through SQL analysis and machine learning clustering — then delivers findings as an interactive Quarto analytical report.
+
+**Built on real public data (USAspending.gov federal procurement)** — same problem structure as private-sector supplier intelligence, at real scale.
+
+**Live report:** [supply-chain-intel.vercel.app](https://supply-chain-intel.vercel.app) *(fill in after deploy)*
+
+---
+
+## The Business Story
+
+At Daikin North America, I led a manual BOM analysis that identified **$5M+ in procurement savings** — $2M direct (supplier re-sourcing), $3M indirect (lead-time reduction → lower safety stock). That work took weeks and lived in spreadsheets. This project shows what it looks like as a *reproducible, scalable data system*:
+
+- Vendor performance ranked by cost × lead time using SQL window functions
+- Price anomalies surfaced with z-score analysis per category
+- Suppliers segmented into actionable business tiers (not "Cluster 0")
+- Cost reduction opportunities **quantified in dollars** — not just flagged
+
+---
+
+## Architecture
+
+```
+USAspending.gov federal procurement data
+    ↓
+DuckDB (analytical SQL engine — handles 10M+ rows locally)
+    ↓
+sql/01_vendor_performance.sql    — CTEs + RANK() + window functions
+sql/02_price_anomalies.sql       — z-score anomaly detection per category
+sql/03_cost_opportunities.sql    — "if-we-switched" cost reduction estimates
+    ↓
+notebooks/01_eda.ipynb           — Spend distribution, Pareto, concentration
+notebooks/02_clustering.ipynb    — K-means supplier segmentation + elbow + silhouette
+    ↓
+report/supply_chain_intelligence.qmd → HTML   (primary deliverable)
+```
+
+---
+
+## Tech Stack
+
+| Layer | Tool | Notes |
+|-------|------|-------|
+| Database | DuckDB | In-process analytical SQL; handles the full USAspending slice |
+| SQL analysis | CTEs, window functions, z-score, RANK | DATA 514 applied to real business problem |
+| Python wrangling | Pandas | What SQL can't do cleanly |
+| Clustering | scikit-learn K-means + Hierarchical | Named business segments, not cluster numbers |
+| Visualization | Plotly (interactive), Seaborn | Plotly for cluster scatterplots in the Quarto report |
+| Report | Quarto → HTML | Primary deliverable; deployed as static site |
+| Hosting | Vercel (static HTML) | |
+| Environment | conda (`environment.yml`) | |
+
+---
+
+## Supplier Segments
+
+K-means clustering groups vendors by: cost percentile · lead time · award frequency · spend concentration.
+
+| Segment | Profile | Business recommendation |
+|---------|---------|------------------------|
+| **Premium Reliable** | Low cost, short lead time, consistent | Strategic partners — protect and deepen relationships |
+| **Cost-Efficient** | Low cost, acceptable delivery | Preferred for commodity / non-critical awards |
+| **Underperforming** | High cost or poor delivery | Candidates for replacement — quantified $ at stake |
+| **Risky / Volatile** | Inconsistent performance | Flag for monitoring; escalation trigger |
+
+*The interview story: "I deliberately named clusters with business recommendations, not 'Cluster 0.' Operations teams need output they can act on next Tuesday morning."*
+
+---
+
+## Key SQL Patterns
+
+```sql
+-- Vendor performance ranking with window functions (sql/01_vendor_performance.sql)
+WITH vendor_metrics AS (
+    SELECT
+        recipient_name,
+        naics_code,
+        AVG(action_amount)  AS avg_award,
+        COUNT(*)            AS award_count,
+        SUM(action_amount)  AS lifetime_spend,
+        AVG(DATEDIFF('day', action_date::DATE,
+            period_of_performance_end::DATE)) AS avg_lead_time_days
+    FROM federal_awards
+    WHERE action_date >= '2023-01-01'
+    GROUP BY recipient_name, naics_code
+)
+SELECT
+    recipient_name,
+    naics_code,
+    avg_award,
+    avg_lead_time_days,
+    RANK() OVER (PARTITION BY naics_code ORDER BY avg_award ASC)           AS cost_rank,
+    RANK() OVER (PARTITION BY naics_code ORDER BY avg_lead_time_days ASC)  AS speed_rank,
+    SUM(lifetime_spend) OVER (PARTITION BY naics_code)                     AS naics_total_spend
+FROM vendor_metrics
+WHERE award_count >= 5;
+```
+
+The same CTE + window-function patterns appear in the [Retail Returns Intelligence](https://github.com/aalias01/retail-returns-intelligence) project for RFM and customer ranking — deliberate SQL skill reinforcement across two domains.
+
+---
+
+## Key Results
+
+*Filled in after analysis runs.*
+
+| Finding | Value | Notes |
+|---------|-------|-------|
+| Vendors analyzed | — | From USAspending slice |
+| Price anomalies detected (|z| > 2) | — | Per NAICS category |
+| Estimated cost reduction opportunity | $— | If Underperforming → Cost-Efficient |
+| Pareto concentration (top 20% vendors) | —% of spend | Expected ~80% |
+| Silhouette score (K-means) | — | k=TBD |
+
+---
+
+## Setup
+
+```bash
+# 1. Clone
+git clone https://github.com/aalias01/supply-chain-cost-intelligence
+cd supply-chain-cost-intelligence
+
+# 2. Environment
+conda env create -f environment.yml
+conda activate supply-chain
+python -m ipykernel install --user --name supply-chain --display-name "supply-chain"
+
+# 3. Download data (USAspending.gov — free, no login required)
+python data/load_usaspending.py   # downloads and loads into DuckDB
+
+# 4. Run notebooks in order:
+#    notebooks/01_eda.ipynb
+#    notebooks/02_clustering.ipynb
+
+# 5. Render Quarto report
+quarto render report/supply_chain_intelligence.qmd
+# Output: report/supply_chain_intelligence.html
+
+# 6. Deploy to Vercel
+vercel deploy report/supply_chain_intelligence.html --prod
+```
+
+---
+
+## Repository Structure
+
+```
+supply-chain-cost-intelligence/
+├── README.md
+├── .gitignore
+├── environment.yml
+├── requirements.txt
+│
+├── data/
+│   ├── raw/           ← GITIGNORED — downloaded by load_usaspending.py
+│   ├── processed/     ← GITIGNORED — DuckDB tables
+│   └── sample/        ← Small slice committed (~500 rows for reproducibility demo)
+│
+├── sql/
+│   ├── 01_vendor_performance.sql   ← CTEs + RANK + window functions
+│   ├── 02_price_anomalies.sql      ← Z-score price anomaly detection per category
+│   └── 03_cost_opportunities.sql   ← "If-we-switched" quantified savings estimates
+│
+├── notebooks/
+│   ├── 01_eda.ipynb          ← Spend distribution, Pareto, vendor concentration
+│   └── 02_clustering.ipynb   ← K-means segmentation + elbow + silhouette + naming
+│
+├── src/
+│   ├── data_loader.py    ← USAspending download, DuckDB load, schema setup
+│   └── clustering.py     ← Vendor feature preparation + K-means + segment naming
+│
+├── report/
+│   ├── supply_chain_intelligence.qmd   ← Quarto source (primary deliverable)
+│   └── supply_chain_intelligence.html  ← Rendered output (gitignored except this)
+│
+└── figures/            ← Saved plots (committed)
+```
+
+---
+
+## Interview Context
+
+1. **The Daikin story:** *"I ran this analysis manually at Daikin — weeks of spreadsheet work to find $5M in savings. This project shows what that looks like as a reproducible data system: the same analytical questions, answered in SQL and Python, runnable in under 10 minutes."*
+
+2. **SQL-first design:** *"I deliberately led with SQL, not Python. Procurement analysts live in SQL; CTEs and window functions are how they actually work. The Python clustering sits on top of what SQL has already prepared — that's realistic for a real deployment."*
+
+3. **Real data:** *"I used USAspending.gov rather than a synthetic dataset. Federal procurement data is messy, at scale, and structurally identical to private-sector procurement. Cleaning and analyzing it is itself a demonstration of competence."*
+
+4. **Named segments:** *"The clustering output is framed as business recommendations, not cluster numbers. That's intentional — 'switch 30% of Category X volume from Tier 3 to Tier 1 vendors; estimated annual savings $X' is what a procurement VP actually wants to see."*
+
+---
+
+*Built by [Alvin Alias](https://github.com/aalias01) — MS Data Science, University of Washington · 12 years engineering ops including $5M+ procurement optimization at Daikin North America*

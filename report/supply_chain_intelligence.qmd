@@ -1,0 +1,226 @@
+---
+title: "Supply Chain Cost Intelligence"
+subtitle: "SQL-driven supplier analytics on US federal procurement data"
+author: "Alvin Alias"
+date: today
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-location: left
+    number-sections: true
+    self-contained: true
+    code-fold: true
+    code-tools: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+```{python}
+#| include: false
+import sys; sys.path.insert(0, '..')
+import duckdb
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import plotly.express as px
+from pathlib import Path
+from src.data_loader import DB_PATH
+
+sns.set_theme(style='whitegrid')
+conn = duckdb.connect(str(DB_PATH), read_only=True)
+```
+
+## Executive Summary
+
+This report analyzes **[N] federal procurement contracts** from USAspending.gov (FY2023),
+representing **$[X]B in government spend** across **[N] unique vendors** and **[N] NAICS categories**.
+
+Using SQL window functions and K-means clustering, I identified four vendor performance tiers
+and quantified **$[X]M in potential cost reduction** — assuming a 30% re-sourcing rate for
+Underperforming vendors.
+
+> **The business parallel:** I ran a structurally identical analysis at Daikin North America
+> and identified $5M+ in procurement savings — $2M direct (supplier re-sourcing), $3M indirect
+> (lead-time reduction → lower safety stock). This project shows that analysis as a
+> *reproducible, scalable data system*.
+
+**Key findings:**
+
+- Top [X]% of vendors account for 80% of total spend (Pareto concentration)
+- [X]% of awards exhibit significant price anomalies (|z-score| > 2)
+- [X] vendors classified as Underperforming (high cost + slow delivery)
+- Conservative savings opportunity: **$[X]M** (30% re-source of Underperforming segment)
+
+---
+
+## Data
+
+**Source:** [USAspending.gov Award Data Archive](https://www.usaspending.gov/download_center/award_data_archive) —
+FY2023 federal contracts, filtered to NAICS categories with ≥10 active vendors.
+
+**Why this dataset:** Federal procurement data is public, real, at scale (millions of records),
+and structurally identical to private-sector supplier intelligence — same cost / vendor / category
+schema as a corporate BOM. Choosing real data over synthetic is itself a demonstration of
+analytical competence.
+
+```{python}
+#| label: tbl-summary
+#| tbl-cap: "Dataset summary"
+from src.data_loader import get_awards_summary
+get_awards_summary(conn)
+```
+
+---
+
+## Spend Distribution and Vendor Concentration
+
+### Pareto Analysis
+
+<!-- Replace placeholder text with real results after notebook run -->
+
+The spend distribution is highly right-skewed — consistent with federal procurement patterns
+where a small number of large contractors dominate total spend. The Pareto analysis below
+confirms the 80/20 rule holds: the top **[X]%** of vendors account for **80%** of total spend.
+
+```{python}
+#| label: fig-pareto
+#| fig-cap: "Vendor spend concentration (Pareto)"
+# TODO: render figures/01_pareto_concentration.png or regenerate inline
+from IPython.display import Image
+Image('../figures/01_pareto_concentration.png')
+```
+
+**Implication:** Optimization effort should concentrate on the top-spending vendors.
+Improving procurement terms for the top 20% of vendors by spend has 4× the impact of
+improving the bottom 80%.
+
+---
+
+## SQL Analysis
+
+### Vendor Performance Ranking
+
+The following query ranks vendors within their NAICS category by cost efficiency × lead time,
+using CTEs and SQL window functions — the same patterns I use in the
+[Retail Returns Intelligence](https://github.com/aalias01/retail-returns-intelligence) project
+for customer RFM and top-decile ranking.
+
+```{python}
+#| label: tbl-vendor-perf
+#| tbl-cap: "Top 20 vendors by composite efficiency score"
+vendor_sql = open('../sql/01_vendor_performance.sql').read().split('-- ── Save')[0]
+vendor_df = conn.execute(vendor_sql).df()
+vendor_df.head(20)
+```
+
+### Price Anomaly Detection
+
+Z-score analysis identifies awards priced abnormally relative to their NAICS category distribution.
+
+```{python}
+#| label: tbl-anomalies
+#| tbl-cap: "Price anomalies: |z| > 2"
+anomaly_sql = open('../sql/02_price_anomalies.sql').read().split('-- ── Output 2')[0]
+anomalies = conn.execute(anomaly_sql).df()
+print(f"Anomalous awards: {len(anomalies):,} ({len(anomalies)/len(vendor_df)*100:.1f}% of vendors)")
+anomalies.head(15)
+```
+
+---
+
+## Supplier Segmentation
+
+### Clustering Methodology
+
+K-means clustering groups vendors into performance tiers based on:
+cost percentile · lead time percentile · award frequency · spend concentration.
+
+```{python}
+#| label: fig-elbow
+#| fig-cap: "Elbow and silhouette analysis for optimal k"
+from IPython.display import Image
+Image('../figures/02_elbow_silhouette.png')
+```
+
+Optimal k = **[TBD]**, silhouette score **[TBD]**.
+
+### Segment Profiles
+
+```{python}
+#| label: tbl-segments
+#| tbl-cap: "Vendor segment profiles"
+vendor_segmented = pd.read_parquet('../data/processed/vendor_segmented.parquet')
+vendor_segmented.groupby('segment_name').agg(
+    vendor_count=('recipient_name', 'nunique'),
+    total_spend=('lifetime_spend', 'sum'),
+    avg_award=('avg_award', 'mean'),
+    avg_lead_time=('avg_lead_time_days', 'mean'),
+).round(0)
+```
+
+### Cluster Visualization
+
+```{python}
+#| label: fig-clusters
+#| fig-cap: "Supplier segments — PCA projection (bubble size = total spend)"
+from IPython.display import HTML
+HTML(open('../figures/02_cluster_scatter.html').read())
+```
+
+---
+
+## Cost Reduction Opportunities
+
+```{python}
+#| label: tbl-opportunities
+#| tbl-cap: "Top vendor substitution opportunities (conservative: 30% re-sourcing)"
+opp_sql = open('../sql/03_cost_opportunities.sql').read().split('-- ── Opportunity 2')[0]
+opps = conn.execute(opp_sql).df()
+total = opps['conservative_savings_30pct'].sum()
+print(f"Total conservative savings: ${total:,.0f}")
+opps.head(20)
+```
+
+**Methodology:** Savings estimated as `(current_avg_award - cost_efficient_benchmark) × award_count × 0.30`.
+The 30% re-sourcing rate accounts for sole-source constraints, contractual obligations, and
+transition costs. This is the same conservative framing used in my Daikin BOM analysis.
+
+---
+
+## Limitations and Caveats
+
+1. **Lead time proxy:** Lead time derived from `period_of_performance_end - action_date`,
+   not actual delivery date. This may overestimate lead time for contracts with options.
+
+2. **No quality signal:** Federal procurement data does not include defect rates or
+   performance ratings. The clustering is cost × speed only.
+
+3. **30% re-source assumption:** The savings estimate assumes 30% of Underperforming volume
+   can be re-sourced — conservative but still an estimate. Actual recoverability depends on
+   contract type (FFP vs. T&M), NAICS specialization, and competitive landscape.
+
+4. **Scope:** Analysis covers federal contracts ≥ $1,000 in FY2023. Micro-purchases
+   excluded. International procurement not covered.
+
+---
+
+## Conclusions
+
+Supply chain cost intelligence is not a modeling problem — it is a **data organization and
+SQL problem** with clustering on top to make the output actionable.
+
+The SQL-first approach here deliberately mirrors how procurement analysts actually work:
+aggregate by vendor and category, rank by KPIs, flag anomalies, then hand off to Python
+for the segmentation that SQL can't do cleanly.
+
+The output — named business segments with quantified dollar estimates, not cluster numbers —
+is the format that a procurement VP can act on next Tuesday morning.
+
+---
+
+*Report generated with [Quarto](https://quarto.org). Source:
+[github.com/aalias01/supply-chain-cost-intelligence](https://github.com/aalias01/supply-chain-cost-intelligence)*

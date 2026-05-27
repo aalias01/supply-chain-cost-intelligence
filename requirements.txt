@@ -1,0 +1,10 @@
+# Vercel static-site deployment needs no server-side requirements.
+# This file is a record of the Python environment used for analysis.
+# Install locally with: conda env create -f environment.yml
+
+duckdb>=0.10.0
+pandas>=2.0.0
+numpy>=1.24.0
+scikit-learn>=1.3.0
+plotly>=5.15.0
+requests>=2.31.0

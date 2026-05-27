@@ -1,0 +1,46 @@
+# Private local folders — never pushed to GitHub
+**/*_local/
+
+# Data — raw files can be large
+data/raw/
+data/processed/
+*.parquet
+*.h5
+
+# Commit only: data/sample/ (small slice for reproducibility)
+
+# DuckDB database files
+*.duckdb
+*.duckdb.wal
+
+# Quarto artifacts
+report/_freeze/
+report/.quarto/
+*.html
+# Allow back the rendered report HTML:
+!report/supply_chain_intelligence.html
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+.venv/
+venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tableau / PowerBI source (only export PDFs/screenshots)
+*.twb
+*.twbx
+*.pbix

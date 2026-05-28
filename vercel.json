@@ -1,0 +1,9 @@
+{
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/report/supply_chain_intelligence.html"
+    }
+  ]
+}

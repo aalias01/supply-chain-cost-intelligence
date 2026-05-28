@@ -126,7 +126,8 @@ Z-score analysis identifies awards priced abnormally relative to their NAICS cat
 #| tbl-cap: "Price anomalies: |z| > 2"
 anomaly_sql = open('../sql/02_price_anomalies.sql').read().split('-- ── Output 2')[0]
 anomalies = conn.execute(anomaly_sql).df()
-print(f"Anomalous awards: {len(anomalies):,} ({len(anomalies)/len(vendor_df)*100:.1f}% of vendors)")
+award_count = conn.execute("SELECT COUNT(*) FROM federal_awards WHERE action_amount > 0").fetchone()[0]
+print(f"Anomalous awards: {len(anomalies):,} ({len(anomalies)/award_count*100:.1f}% of awards)")
 anomalies.head(15)
 ```
 

@@ -39,7 +39,7 @@ z_scored AS (
         a.naics_description,
         a.action_date,
         a.action_amount,
-        a.avg_lead_time_days            AS lead_time_days,
+        a.lead_time_days,
         a.agency_name,
 
         cs.mean_amount,

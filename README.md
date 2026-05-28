@@ -11,7 +11,9 @@ Procurement teams lose millions annually to supplier inefficiencies hidden in th
 
 **Built on real public data (USAspending.gov federal procurement)** — same problem structure as private-sector supplier intelligence, at real scale.
 
-**Live report:** [supply-chain-intel.vercel.app](https://supply-chain-intel.vercel.app) *(fill in after deploy)*
+**Status:** Analysis scaffold complete. Data download, notebook execution, report render, and deployment are the remaining ship steps.
+
+**Live report:** pending deployment after the Quarto report is rendered with real results.
 
 ---
 
@@ -110,7 +112,7 @@ The same CTE + window-function patterns appear in the [Retail Returns Intelligen
 
 ## Key Results
 
-*Filled in after analysis runs.*
+These are intentionally left unfilled until the USAspending data slice is loaded and the notebooks are run. Avoid publishing headline numbers until they are produced by the reproducible pipeline.
 
 | Finding | Value | Notes |
 |---------|-------|-------|
@@ -118,7 +120,7 @@ The same CTE + window-function patterns appear in the [Retail Returns Intelligen
 | Price anomalies detected (|z| > 2) | — | Per NAICS category |
 | Estimated cost reduction opportunity | $— | If Underperforming → Cost-Efficient |
 | Pareto concentration (top 20% vendors) | —% of spend | Expected ~80% |
-| Silhouette score (K-means) | — | k=TBD |
+| Silhouette score (K-means) | — | From `notebooks/02_clustering.ipynb` |
 
 ---
 
@@ -134,8 +136,9 @@ conda env create -f environment.yml
 conda activate supply-chain
 python -m ipykernel install --user --name supply-chain --display-name "supply-chain"
 
-# 3. Download data (USAspending.gov — free, no login required)
-python data/load_usaspending.py   # downloads and loads into DuckDB
+# 3. Download and load data (USAspending.gov — free, no login required)
+python -m src.data_loader --download --load --fy 2023
+python -m src.data_loader --sample --fy 2023
 
 # 4. Run notebooks in order:
 #    notebooks/01_eda.ipynb
@@ -145,8 +148,8 @@ python data/load_usaspending.py   # downloads and loads into DuckDB
 quarto render report/supply_chain_intelligence.qmd
 # Output: report/supply_chain_intelligence.html
 
-# 6. Deploy to Vercel
-vercel deploy report/supply_chain_intelligence.html --prod
+# 6. Deploy to Vercel after replacing placeholders with real findings
+vercel --prod
 ```
 
 ---

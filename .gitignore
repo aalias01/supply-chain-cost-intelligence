@@ -44,3 +44,6 @@ Thumbs.db
 *.twb
 *.twbx
 *.pbix
+
+# AI-generated build guides — private scaffolding notes
+guides/

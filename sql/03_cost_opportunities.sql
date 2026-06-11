@@ -5,8 +5,8 @@
 -- Cost-Efficient vendors within the same NAICS category.
 --
 -- This is the "dollar story" — the output that makes an analyst say "show me more."
--- Interview story: "This is structurally identical to the Daikin BOM re-sourcing
--- analysis that found $5M in savings — except it runs in seconds instead of weeks."
+-- Structurally identical to manual BOM re-sourcing analysis in industrial
+-- procurement — except it runs in seconds instead of weeks.
 --
 -- Three opportunity types:
 --   1. Vendor substitution: replace high-cost vendor with cost-efficient equivalent

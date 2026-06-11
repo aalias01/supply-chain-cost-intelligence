@@ -1,6 +1,6 @@
 # Supply Chain Cost Intelligence
 
-> **SQL-driven supplier analytics — the same analysis I ran at Daikin to surface $5M+ in savings, now as a reproducible data system.**
+> **SQL-driven supplier analytics — the BOM cost analysis I've done manually in industrial manufacturing, rebuilt as a reproducible data system.**
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
 [![DuckDB](https://img.shields.io/badge/DuckDB-1.x-yellow)](https://duckdb.org/)
@@ -19,7 +19,7 @@ Procurement teams lose millions annually to supplier inefficiencies hidden in th
 
 ## The Business Story
 
-At Daikin North America, I led a manual BOM analysis that identified **$5M+ in procurement savings** — $2M direct (supplier re-sourcing), $3M indirect (lead-time reduction → lower safety stock). That work took weeks and lived in spreadsheets. This project shows what it looks like as a *reproducible, scalable data system*:
+I've done this analysis manually — leading a BOM cost analysis for a major HVAC manufacturer: weeks of spreadsheet work tracing supplier re-sourcing opportunities and lead-time-driven safety stock. It worked, but it wasn't repeatable. This project is the version I wished I'd had — a reproducible, scalable data system:
 
 - Vendor performance ranked by cost × lead time using SQL window functions
 - Price anomalies surfaced with z-score analysis per category
@@ -205,16 +205,16 @@ supply-chain-cost-intelligence/
 
 ---
 
-## Interview Context
+## Design Decisions
 
-1. **The Daikin story:** *"I ran this analysis manually at Daikin — weeks of spreadsheet work to find $5M in savings. This project shows what that looks like as a reproducible data system: the same analytical questions, answered in SQL and Python, runnable in under 10 minutes."*
+1. **Manual analysis → data system.** This pipeline automates the kind of BOM cost analysis that usually lives in spreadsheets and takes weeks: the same analytical questions — where is spend concentrated, which suppliers are substitutable, what does lead time cost — answered reproducibly in minutes.
 
-2. **SQL-first design:** *"I deliberately led with SQL, not Python. Procurement analysts live in SQL; CTEs and window functions are how they actually work. The Python clustering sits on top of what SQL has already prepared — that's realistic for a real deployment."*
+2. **SQL-first design.** The heavy lifting is deliberately in SQL, not Python. Procurement analysts live in SQL; CTEs and window functions are how the work actually gets done. The Python clustering sits on top of what SQL has already prepared — the realistic shape of a production deployment.
 
-3. **Real data:** *"I used USAspending.gov rather than a synthetic dataset. Federal procurement data is messy, at scale, and structurally identical to private-sector procurement. Cleaning and analyzing it is itself a demonstration of competence."*
+3. **Real data over synthetic.** USAspending.gov data is messy, at scale, and structurally identical to private-sector procurement. Cleaning and analyzing it is part of what the project demonstrates.
 
-4. **Named segments:** *"The clustering output is framed as business recommendations, not cluster numbers. That's intentional — 'switch 30% of Category X volume from Tier 3 to Tier 1 vendors; estimated annual savings $X' is what a procurement VP actually wants to see."*
+4. **Named segments, not cluster numbers.** The clustering output is framed as business recommendations — "switch 30% of Category X volume from Tier 3 to Tier 1 vendors; estimated annual savings $X" is something an operations team can act on.
 
 ---
 
-*Built by [Alvin Alias](https://github.com/aalias01) — MS Data Science, University of Washington · 12 years engineering ops including $5M+ procurement optimization at Daikin North America*
+*Built by [Alvin Alias](https://github.com/aalias01) — MS Data Science, University of Washington · 12 years engineering operations in industrial manufacturing, including BOM and procurement cost analysis*

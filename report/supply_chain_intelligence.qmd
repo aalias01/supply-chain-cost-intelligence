@@ -46,10 +46,10 @@ at a conservative 30% re-sourcing rate. The unfiltered price-gap screen totals $
 of that sits in defense platform contracts where substitution is structurally impossible;
 separating the two is the analytical judgment this report demonstrates.
 
-> **The business parallel:** I ran a structurally identical analysis at Daikin North America
-> and identified $5M+ in procurement savings — $2M direct (supplier re-sourcing), $3M indirect
-> (lead-time reduction → lower safety stock). This project shows that analysis as a
-> *reproducible, scalable data system*.
+> **The business parallel:** I've run a structurally identical analysis manually — a BOM cost
+> analysis for a major HVAC manufacturer, tracing supplier re-sourcing opportunities and
+> lead-time-driven safety stock across weeks of spreadsheet work. This project shows that
+> analysis as a *reproducible, scalable data system*.
 
 **Key findings:**
 
@@ -205,7 +205,7 @@ The 30% re-sourcing rate accounts for sole-source constraints, contractual oblig
 transition costs. The scope-comparability filter (benchmark price within 10× of current) removes
 structurally impossible substitutions — without it, the screen inflates to $8.6B by "re-sourcing"
 aircraft primes to small machine shops. Knowing which number to put in front of a VP is the
-same judgment call as in my Daikin BOM analysis.
+judgment call that separates a screening query from a recommendation.
 
 ---
 

@@ -109,10 +109,6 @@ FROM vendor_metrics
 WHERE award_count >= 5;
 ```
 
-The same CTE + window-function patterns appear in the [Retail Returns Intelligence](https://github.com/aalias01/retail-returns-intelligence) project for RFM and customer ranking — deliberate SQL skill reinforcement across two domains.
-
----
-
 ## Key Results
 
 All numbers produced by the reproducible pipeline (FY2023, manufacturing NAICS 33, 100K awards, $42.5B spend):

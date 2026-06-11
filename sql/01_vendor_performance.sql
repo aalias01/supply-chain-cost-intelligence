@@ -4,9 +4,6 @@
 -- Demonstrates: CTEs, window functions (RANK, SUM OVER, AVG OVER),
 -- multi-level aggregation, and procurement-domain KPI construction.
 --
--- Same SQL patterns used in retail_returns_intelligence for RFM and customer ranking —
--- deliberate cross-project SQL skill reinforcement.
---
 -- Run against: data/processed/supply_chain.duckdb (via DuckDB CLI or Python)
 -- Output: vendor_performance.parquet (used by notebooks/02_clustering.ipynb)
 

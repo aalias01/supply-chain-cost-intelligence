@@ -111,9 +111,8 @@ vendors compete within the same category.
 ### Vendor Performance Ranking
 
 The following query ranks vendors within their NAICS category by cost efficiency × lead time,
-using CTEs and SQL window functions — the same patterns I use in the
-[Retail Returns Intelligence](https://github.com/aalias01/retail-returns-intelligence) project
-for customer RFM and top-decile ranking.
+using CTEs and SQL window functions — the same patterns procurement analysts use for
+benchmark-and-rank work in any BI stack.
 
 ```{python}
 #| label: tbl-vendor-perf

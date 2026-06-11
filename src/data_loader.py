@@ -20,23 +20,24 @@ Or from a notebook:
 
 from __future__ import annotations
 
-import io
-import zipfile
 import argparse
 from pathlib import Path
 from typing import Optional
 
 import duckdb
 import pandas as pd
-import requests
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
-RAW_DIR       = Path("data/raw")
-PROCESSED_DIR = Path("data/processed")
-SAMPLE_DIR    = Path("data/sample")
+# Resolve paths relative to the project root (src/ → project root) so the
+# loader, notebooks (run from notebooks/), and the Quarto report (rendered
+# from report/) all see the same absolute paths.
+PROJECT_ROOT  = Path(__file__).resolve().parent.parent
+RAW_DIR       = PROJECT_ROOT / "data" / "raw"
+PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
+SAMPLE_DIR    = PROJECT_ROOT / "data" / "sample"
 DB_PATH       = PROCESSED_DIR / "supply_chain.duckdb"
 
 # USAspending Award Data Archive — fiscal year bulk download
@@ -74,21 +75,15 @@ def download_usaspending_csv(
     force: bool = False,
 ) -> Path:
     """
-    Download USAspending bulk data for a given fiscal year.
+    Download + filter USAspending bulk data for a given fiscal year.
 
-    USAspending provides pre-built ZIP archives at:
-    https://files.usaspending.gov/award_data_archive/FY{year}_{type}_1.zip
-
-    Each ZIP contains one or more CSVs. We extract the first CSV.
-
-    Args:
-        fiscal_year: FY to download (e.g. 2023)
-        award_type: "contracts", "grants", "loans", or "direct_payments"
-        dest_dir: where to save the extracted CSV
-        force: re-download even if file exists
+    Delegates to scripts/fetch_data.py, which resolves the current Award Data
+    Archive URL via the USAspending API (archive file names carry a refresh
+    date stamp, so they cannot be hard-coded), streams the multi-GB zip, and
+    keeps only the analysis slice.
 
     Returns:
-        Path to the extracted CSV file
+        Path to the filtered CSV file
     """
     dest_dir.mkdir(parents=True, exist_ok=True)
     csv_path = dest_dir / f"FY{fiscal_year}_{award_type}.csv"
@@ -97,31 +92,13 @@ def download_usaspending_csv(
         print(f"[data_loader] Already exists: {csv_path} — skipping download. Use force=True to re-download.")
         return csv_path
 
-    url = f"https://files.usaspending.gov/award_data_archive/FY{fiscal_year}_{award_type}_1.zip"
-    print(f"[data_loader] Downloading from {url} ...")
-
-    resp = requests.get(url, stream=True, timeout=300)
-    resp.raise_for_status()
-
-    total = int(resp.headers.get("content-length", 0))
-    downloaded = 0
-    chunks = []
-    for chunk in resp.iter_content(chunk_size=1024 * 1024):
-        chunks.append(chunk)
-        downloaded += len(chunk)
-        if total:
-            pct = downloaded / total * 100
-            print(f"\r  {downloaded / 1e6:.1f} MB / {total / 1e6:.1f} MB ({pct:.0f}%)", end="")
-
-    print(f"\n[data_loader] Extracting ZIP...")
-    buf = io.BytesIO(b"".join(chunks))
-    with zipfile.ZipFile(buf) as zf:
-        csv_names = [n for n in zf.namelist() if n.endswith(".csv")]
-        if not csv_names:
-            raise ValueError(f"No CSV found in ZIP from {url}")
-        with zf.open(csv_names[0]) as f:
-            csv_path.write_bytes(f.read())
-    print(f"[data_loader] Saved: {csv_path}")
+    import subprocess
+    import sys as _sys
+    script = PROJECT_ROOT / "scripts" / "fetch_data.py"
+    print(f"[data_loader] Delegating download to {script} ...")
+    subprocess.run([_sys.executable, str(script), "--fy", str(fiscal_year)], check=True)
+    if not csv_path.exists():
+        raise FileNotFoundError(f"fetch_data.py finished but {csv_path} not found.")
     return csv_path
 
 
@@ -207,7 +184,7 @@ def load_db(
             "award_id_piid"                             AS award_id_piid,
             "recipient_name"                            AS recipient_name,
             "recipient_uei"                             AS recipient_uei,
-            "naics_code"                                AS naics_code,
+            CAST("naics_code" AS VARCHAR)               AS naics_code,
             "naics_description"                         AS naics_description,
             TRY_CAST("action_date" AS DATE)             AS action_date,
             TRY_CAST("period_of_performance_start_date" AS DATE) AS perf_start_date,
@@ -224,7 +201,7 @@ def load_db(
             {fiscal_year}                               AS fy
         FROM read_csv_auto('{csv_path}', ignore_errors=True)
         WHERE TRY_CAST("federal_action_obligation" AS DOUBLE) >= {min_amount}
-        {"AND naics_code LIKE '" + naics_filter + "%'" if naics_filter else ""}
+        {"AND CAST(naics_code AS VARCHAR) LIKE '" + naics_filter + "%'" if naics_filter else ""}
         {"LIMIT " + str(limit) if limit else ""}
     """
 

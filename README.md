@@ -2,18 +2,18 @@
 
 > **SQL-driven supplier analytics — the same analysis I ran at Daikin to surface $5M+ in savings, now as a reproducible data system.**
 
-[![Python](https://img.shields.io/badge/Python-3.11-blue)](https://www.python.org/)
-[![DuckDB](https://img.shields.io/badge/DuckDB-0.10-yellow)](https://duckdb.org/)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
+[![DuckDB](https://img.shields.io/badge/DuckDB-1.x-yellow)](https://duckdb.org/)
 [![Quarto](https://img.shields.io/badge/Quarto-report-teal)](https://quarto.org/)
-[![scikit-learn](https://img.shields.io/badge/scikit--learn-1.3-orange)](https://scikit-learn.org/)
+[![scikit-learn](https://img.shields.io/badge/scikit--learn-1.7-orange)](https://scikit-learn.org/)
 
 Procurement teams lose millions annually to supplier inefficiencies hidden in their own data: price anomalies, unreliable lead times, and unoptimized vendor selection. This project surfaces those opportunities through SQL analysis and machine learning clustering — then delivers findings as an interactive Quarto analytical report.
 
 **Built on real public data (USAspending.gov federal procurement)** — same problem structure as private-sector supplier intelligence, at real scale.
 
-**Status:** Analysis scaffold complete. Data download, notebook execution, report render, and deployment are the remaining ship steps.
+**Live report:** [aalias01.github.io/supply-chain-cost-intelligence](https://aalias01.github.io/supply-chain-cost-intelligence/)
 
-**Live report:** pending deployment after the Quarto report is rendered with real results.
+![Vendor spend concentration (Pareto)](figures/01_pareto_concentration.png)
 
 ---
 
@@ -32,6 +32,9 @@ At Daikin North America, I led a manual BOM analysis that identified **$5M+ in p
 
 ```
 USAspending.gov federal procurement data
+    ↓
+scripts/fetch_data.py  — resolves current archive URL via API, stream-filters
+                         the multi-GB zip to the analysis slice (stdlib only)
     ↓
 DuckDB (analytical SQL engine — handles 10M+ rows locally)
     ↓
@@ -57,7 +60,7 @@ report/supply_chain_intelligence.qmd → HTML   (primary deliverable)
 | Clustering | scikit-learn K-means + Hierarchical | Named business segments, not cluster numbers |
 | Visualization | Plotly (interactive), Seaborn | Plotly for cluster scatterplots in the Quarto report |
 | Report | Quarto → HTML | Primary deliverable; deployed as static site |
-| Hosting | Vercel (static HTML) | |
+| Hosting | GitHub Pages (static HTML via Actions) | |
 | Environment | conda (`environment.yml`) | |
 
 ---
@@ -112,15 +115,21 @@ The same CTE + window-function patterns appear in the [Retail Returns Intelligen
 
 ## Key Results
 
-These are intentionally left unfilled until the USAspending data slice is loaded and the notebooks are run. Avoid publishing headline numbers until they are produced by the reproducible pipeline.
+All numbers produced by the reproducible pipeline (FY2023, manufacturing NAICS 33, 100K awards, $42.5B spend):
 
 | Finding | Value | Notes |
 |---------|-------|-------|
-| Vendors analyzed | — | From USAspending slice |
-| Price anomalies detected (|z| > 2) | — | Per NAICS category |
-| Estimated cost reduction opportunity | $— | If Underperforming → Cost-Efficient |
-| Pareto concentration (top 20% vendors) | —% of spend | Expected ~80% |
-| Silhouette score (K-means) | — | From `notebooks/02_clustering.ipynb` |
+| Vendors analyzed | 11,257 (2,834 clustered) | Clustering requires ≥3 awards per vendor-NAICS pair |
+| Price anomalies detected (\|z\| > 2) | 1,456 awards (1.5%) | Z-score per NAICS category |
+| Actionable cost reduction opportunity | **$182M** | Scope-comparable substitution, 30% re-source rate |
+| Raw price-gap screen | $8.6B | Upper bound — dominated by non-substitutable defense primes |
+| Pareto concentration | Top **1.2%** of vendors = 80% of spend | Far steeper than the 80/20 rule |
+| Optimal k / silhouette score | 4 / 0.271 | From `notebooks/02_clustering.ipynb` |
+
+The $8.6B → $182M distinction is the point: the raw screen "re-sources" aircraft carriers to
+machine shops. Filtering to scope-comparable substitutions (benchmark price within 10× of
+current) is the judgment call that separates a screening query from a number you can defend
+in front of a VP.
 
 ---
 
@@ -136,20 +145,22 @@ conda env create -f environment.yml
 conda activate supply-chain
 python -m ipykernel install --user --name supply-chain --display-name "supply-chain"
 
-# 3. Download and load data (USAspending.gov — free, no login required)
-python -m src.data_loader --download --load --fy 2023
+# 3. Download data (USAspending.gov — free, no login required)
+#    Stream-filters the ~2 GB archive to the analysis slice; stdlib only.
+python3 scripts/fetch_data.py                 # FY2023, NAICS 33, 150K rows max
+
+# 4. Load into DuckDB + save the committed sample
+python -m src.data_loader --load --fy 2023 --naics 33 --limit 100000
 python -m src.data_loader --sample --fy 2023
 
-# 4. Run notebooks in order:
+# 5. Run notebooks in order:
 #    notebooks/01_eda.ipynb
 #    notebooks/02_clustering.ipynb
 
-# 5. Render Quarto report
+# 6. Render Quarto report
 quarto render report/supply_chain_intelligence.qmd
 # Output: report/supply_chain_intelligence.html
-
-# 6. Deploy to Vercel after replacing placeholders with real findings
-vercel --prod
+# Pushing to main auto-deploys it to GitHub Pages (.github/workflows/pages.yml)
 ```
 
 ---
@@ -162,9 +173,13 @@ supply-chain-cost-intelligence/
 ├── .gitignore
 ├── environment.yml
 ├── requirements.txt
+├── .github/workflows/pages.yml   ← Deploys the rendered report to GitHub Pages
+│
+├── scripts/
+│   └── fetch_data.py  ← Archive URL discovery + streaming NAICS filter (stdlib only)
 │
 ├── data/
-│   ├── raw/           ← GITIGNORED — downloaded by load_usaspending.py
+│   ├── raw/           ← GITIGNORED — downloaded by scripts/fetch_data.py
 │   ├── processed/     ← GITIGNORED — DuckDB tables
 │   └── sample/        ← Small slice committed (~500 rows for reproducibility demo)
 │

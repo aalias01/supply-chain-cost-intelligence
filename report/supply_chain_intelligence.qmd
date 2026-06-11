@@ -9,7 +9,7 @@ format:
     toc: true
     toc-location: left
     number-sections: true
-    self-contained: true
+    embed-resources: true
     code-fold: true
     code-tools: true
 execute:
@@ -36,12 +36,15 @@ conn = duckdb.connect(str(DB_PATH), read_only=True)
 
 ## Executive Summary
 
-This report analyzes **[N] federal procurement contracts** from USAspending.gov (FY2023),
-representing **$[X]B in government spend** across **[N] unique vendors** and **[N] NAICS categories**.
+This report analyzes **100,000 federal procurement contracts** from USAspending.gov (FY2023,
+manufacturing NAICS 33), representing **$42.5B in government spend** across **11,257 unique
+vendors** and **214 NAICS categories**.
 
 Using SQL window functions and K-means clustering, I identified four vendor performance tiers
-and quantified **$[X]M in potential cost reduction** — assuming a 30% re-sourcing rate for
-Underperforming vendors.
+and quantified **$182M in actionable cost reduction** — scope-comparable vendor substitution
+at a conservative 30% re-sourcing rate. The unfiltered price-gap screen totals $8.6B, but most
+of that sits in defense platform contracts where substitution is structurally impossible;
+separating the two is the analytical judgment this report demonstrates.
 
 > **The business parallel:** I ran a structurally identical analysis at Daikin North America
 > and identified $5M+ in procurement savings — $2M direct (supplier re-sourcing), $3M indirect
@@ -50,17 +53,20 @@ Underperforming vendors.
 
 **Key findings:**
 
-- Top [X]% of vendors account for 80% of total spend (Pareto concentration)
-- [X]% of awards exhibit significant price anomalies (|z-score| > 2)
-- [X] vendors classified as Underperforming (high cost + slow delivery)
-- Conservative savings opportunity: **$[X]M** (30% re-source of Underperforming segment)
+- Top **1.2%** of vendors account for 80% of total spend — far steeper than the classic 80/20 rule
+- **1,456 awards (1.5%)** exhibit significant price anomalies (|z-score| > 2)
+- **64 vendors** classified as Underperforming (high cost + slow delivery)
+- Conservative, scope-comparable savings opportunity: **$182M** (30% re-source rate, 507 vendor-category pairs)
 
 ---
 
 ## Data
 
 **Source:** [USAspending.gov Award Data Archive](https://www.usaspending.gov/download_center/award_data_archive) —
-FY2023 federal contracts, filtered to NAICS categories with ≥10 active vendors.
+FY2023 federal contracts, filtered to manufacturing (NAICS 33), awards ≥ $1,000, capped at
+100K rows (`scripts/fetch_data.py` reproduces the slice). The row cap lands on the
+FY-end window (action dates Aug 21 – Sep 30, 2023) — the period when federal obligation
+volume peaks.
 
 **Why this dataset:** Federal procurement data is public, real, at scale (millions of records),
 and structurally identical to private-sector supplier intelligence — same cost / vendor / category
@@ -80,23 +86,23 @@ get_awards_summary(conn)
 
 ### Pareto Analysis
 
-<!-- Replace placeholder text with real results after notebook run -->
-
 The spend distribution is highly right-skewed — consistent with federal procurement patterns
 where a small number of large contractors dominate total spend. The Pareto analysis below
-confirms the 80/20 rule holds: the top **[X]%** of vendors account for **80%** of total spend.
+shows concentration far beyond the classic 80/20 rule: the top **1.2%** of vendors account
+for **80%** of total spend, driven by defense primes in aircraft, shipbuilding, and missiles.
 
 ```{python}
 #| label: fig-pareto
 #| fig-cap: "Vendor spend concentration (Pareto)"
-# TODO: render figures/01_pareto_concentration.png or regenerate inline
 from IPython.display import Image
 Image('../figures/01_pareto_concentration.png')
 ```
 
-**Implication:** Optimization effort should concentrate on the top-spending vendors.
-Improving procurement terms for the top 20% of vendors by spend has 4× the impact of
-improving the bottom 80%.
+**Implication:** Optimization effort should concentrate on the top-spending vendors — but
+with a caveat this analysis carries through to the savings estimate: the very top of the
+distribution is dominated by sole-source platform contracts that cannot be re-sourced on
+price. The actionable opportunity lives in the next tier down, where multiple qualified
+vendors compete within the same category.
 
 ---
 
@@ -147,7 +153,9 @@ from IPython.display import Image
 Image('../figures/02_elbow_silhouette.png')
 ```
 
-Optimal k = **[TBD]**, silhouette score **[TBD]**.
+Optimal k = **4**, silhouette score **0.271** — four tiers matching the natural business
+segmentation: Premium Reliable (566 vendors), Cost-Efficient (1,475), Risky / Volatile (1,243),
+and Underperforming (64).
 
 ### Segment Profiles
 
@@ -178,17 +186,26 @@ HTML(open('../figures/02_cluster_scatter.html').read())
 
 ```{python}
 #| label: tbl-opportunities
-#| tbl-cap: "Top vendor substitution opportunities (conservative: 30% re-sourcing)"
+#| tbl-cap: "Top scope-comparable vendor substitution opportunities (conservative: 30% re-sourcing)"
 opp_sql = open('../sql/03_cost_opportunities.sql').read().split('-- ── Opportunity 2')[0]
 opps = conn.execute(opp_sql).df()
-total = opps['conservative_savings_30pct'].sum()
-print(f"Total conservative savings: ${total:,.0f}")
-opps.head(20)
+screened = opps['conservative_savings_30pct'].sum()
+
+# Scope-comparability filter: the p25 benchmark vendor is only a credible substitute
+# if its price is within 10x of the incumbent's. Without this filter the "savings"
+# are dominated by defense platforms where no substitute exists.
+actionable = opps[opps['target_avg_award'] >= 0.1 * opps['avg_award_current']]
+print(f"Raw price-gap screen:            ${screened/1e9:,.2f}B  ({len(opps)} vendor-category pairs)")
+print(f"Scope-comparable (actionable):   ${actionable['conservative_savings_30pct'].sum()/1e6:,.1f}M  ({len(actionable)} pairs)")
+actionable.head(20)
 ```
 
 **Methodology:** Savings estimated as `(current_avg_award - cost_efficient_benchmark) × award_count × 0.30`.
 The 30% re-sourcing rate accounts for sole-source constraints, contractual obligations, and
-transition costs. This is the same conservative framing used in my Daikin BOM analysis.
+transition costs. The scope-comparability filter (benchmark price within 10× of current) removes
+structurally impossible substitutions — without it, the screen inflates to $8.6B by "re-sourcing"
+aircraft primes to small machine shops. Knowing which number to put in front of a VP is the
+same judgment call as in my Daikin BOM analysis.
 
 ---
 
@@ -204,8 +221,15 @@ transition costs. This is the same conservative framing used in my Daikin BOM an
    can be re-sourced — conservative but still an estimate. Actual recoverability depends on
    contract type (FFP vs. T&M), NAICS specialization, and competitive landscape.
 
-4. **Scope:** Analysis covers federal contracts ≥ $1,000 in FY2023. Micro-purchases
-   excluded. International procurement not covered.
+4. **Scope:** Analysis covers manufacturing (NAICS 33) federal contracts ≥ $1,000, capped at
+   100K rows which lands on the FY2023 year-end window (Aug 21 – Sep 30, 2023) — the
+   highest-volume period of the federal fiscal year. Micro-purchases excluded.
+   International procurement not covered.
+
+5. **Award heterogeneity:** Average award value is a coarse price proxy — awards within a
+   NAICS category differ in scope and contract structure. The scope-comparability filter
+   mitigates the worst distortions, but a production system would benchmark at the
+   product/PSC level.
 
 ---
 

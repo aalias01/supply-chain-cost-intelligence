@@ -1,6 +1,6 @@
 # Supply Chain Cost Intelligence
 
-> **SQL-driven supplier analytics — the BOM cost analysis I've done manually in industrial manufacturing, rebuilt as a reproducible data system.**
+> **The BOM cost analysis I've done manually in industrial manufacturing, rebuilt as a SQL-driven data system: vendor ranking, price anomaly detection, and cost-reduction estimates in minutes instead of weeks.**
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
 [![DuckDB](https://img.shields.io/badge/DuckDB-1.x-yellow)](https://duckdb.org/)
